@@ -118,17 +118,50 @@ class Image2360PanoramaImagePipeline(DiffusionPipeline):
             img = torch.from_numpy(img)
             return img
 
-        zeros = np.zeros_like(np.array(image))
-        dice_np = [np.array(image) if x == 0 else zeros for x in range(6)]
-        output_image = py360convert.c2e(dice_np, 512, 1024, cube_format='list')
-        bk_image = to_tensor(image, batch_size=1)
+        if isinstance(image, list):
+            ref_size = image[0].size
+            
+            dice_np = []
+            for i in range(6):
+                if i < len(image):
+                    img_i = image[i].resize(ref_size)
+                    dice_np.append(np.array(img_i))
+                else:
+                    dice_np.append(np.zeros((ref_size[1], ref_size[0], 3), dtype=np.uint8))
+            
+            dice_mask_np = []
+            for i in range(6):
+                if i < len(image):
+                    if isinstance(mask, list) and i < len(mask):
+                        mask_i = mask[i].resize(ref_size)
+                    else:
+                        mask_i = Image.new('RGB', ref_size, color='black')
+                    dice_mask_np.append(np.array(mask_i))
+                else:
+                    dice_mask_np.append(np.ones((ref_size[1], ref_size[0], 3), dtype=np.uint8) * 255)
+            
+            output_image = py360convert.c2e(dice_np, 512, 1024, cube_format='list')
+            output_mask = py360convert.c2e(dice_mask_np, 512, 1024, cube_format='list')
+            
+            bk_image = Image.fromarray(output_image.astype(np.uint8))
+            bk_image = to_tensor(bk_image, batch_size=1)
+            
+            control_image = Image.fromarray(output_image.astype(np.uint8))
+            control_image = to_tensor(control_image, batch_size=1)
+            
+            mask_image = Image.fromarray(output_mask.astype(np.uint8))
+            mask_image = to_tensor(mask_image, batch_size=1)
+        else:
+            zeros = np.zeros_like(np.array(image))
+            dice_np = [np.array(image) if x == 0 else zeros for x in range(6)]
+            output_image = py360convert.c2e(dice_np, 512, 1024, cube_format='list')
+            bk_image = to_tensor(image, batch_size=1)
 
-        control_image = Image.fromarray(output_image.astype(np.uint8))
-        control_image = to_tensor(control_image, batch_size=1)
-        mask_image = to_tensor(mask, batch_size=1)
+            control_image = Image.fromarray(output_image.astype(np.uint8))
+            control_image = to_tensor(control_image, batch_size=1)
+            mask_image = to_tensor(mask, batch_size=1)
 
         control_image = (1 - mask_image) * bk_image + mask_image * control_image
-
         control_image = torch.cat([mask_image[:, :1, :, :], control_image], dim=1)
 
         return control_image

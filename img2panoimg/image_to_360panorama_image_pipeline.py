@@ -63,7 +63,8 @@ class Image2360PanoramaImagePipeline(DiffusionPipeline):
                 self.pipe.enable_xformers_memory_efficient_attention()
         except Exception as e:
             print(e)
-        self.pipe.enable_model_cpu_offload()
+        if torch.cuda.is_available() and torch.cuda.get_device_properties(0).total_memory < 16 * 1024 * 1024 * 1024:
+            self.pipe.enable_model_cpu_offload()
 
         # init controlnet-sr model
         base_model_path = model + '/sr-base'
@@ -82,7 +83,8 @@ class Image2360PanoramaImagePipeline(DiffusionPipeline):
                 self.pipe_sr.enable_xformers_memory_efficient_attention()
         except Exception as e:
             print(e)
-        self.pipe_sr.enable_model_cpu_offload()
+        if torch.cuda.is_available() and torch.cuda.get_device_properties(0).total_memory < 16 * 1024 * 1024 * 1024:
+            self.pipe_sr.enable_model_cpu_offload()
 
         # init realesrgan model
         sr_model = RRDBNet(

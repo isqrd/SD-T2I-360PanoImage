@@ -10,6 +10,8 @@ parser.add_argument("-i", "--image", type=str, default="./data/i2p-image.jpg",
 parser.add_argument("-p", "--prompt", type=str,
                     default="Image of my messy desk and office, create additional detail and 360 pano of the room",
                     help="Prompt to guide the outpainting generation")
+parser.add_argument("-r", "--res", type=str, default="none", choices=["none", "4k", "6k", "8k"],
+                    help="Target upscale resolution (4k, 6k, or 8k). Default is 'none' (fast base resolution)")
 parser.add_argument("-o", "--output", type=str, default="result.png",
                     help="Path to save the generated equirectangular image")
 args = parser.parse_args()
@@ -18,15 +20,29 @@ print(f"Loading input image: {args.image}")
 image = load_image(args.image).resize((512, 512))
 mask = load_image("./data/i2p-mask.jpg")
 
-# set up inputs for 12GB GPU (upscale=False)
-input = {'prompt': args.prompt, 'image': image, 'mask': mask, 'upscale': False}
+# Determine upscale behavior based on the chosen resolution
+upscale = args.res != "none"
+
+# Set up pipeline inputs
+input_dict = {
+    'prompt': args.prompt,
+    'image': image,
+    'mask': mask,
+    'upscale': upscale
+}
+
+if upscale:
+    input_dict['target_resolution'] = args.res
+    print(f"Upscaling enabled. Target resolution: {args.res.upper()}")
+else:
+    print("Upscaling disabled. Generating at base resolution (1024x512).")
 
 print("Initializing Image to 360 Panorama Pipeline...")
 model_id = 'models'
 img2panoimg = Image2360PanoramaImagePipeline(model_id, torch_dtype=torch.float16)
 
 print(f"Running generation with prompt: '{args.prompt}'...")
-output = img2panoimg(input)
+output = img2panoimg(input_dict)
 
 output.save(args.output)
 print(f"Successfully saved generated 360 panorama to: {args.output}")

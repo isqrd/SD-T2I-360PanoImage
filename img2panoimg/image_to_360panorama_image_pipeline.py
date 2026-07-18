@@ -246,7 +246,8 @@ class Image2360PanoramaImagePipeline(DiffusionPipeline):
             height=512,
             width=1024,
             guidance_scale=guidance_scale,
-            generator=generator).images[0]
+            generator=generator,
+            mask=control_image[:, :1, :, :]).images[0]
 
         if not upscale:
             print('finished')

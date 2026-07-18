@@ -1391,7 +1391,8 @@ class StableDiffusionImage2PanoPipeline(DiffusionPipeline, TextualInversionLoade
             controlnet_cond = self.controlnet_cond_embedding(controlnet_cond)
 
             if mask is not None:
-                sample = (1 - mask.to(sample.dtype)) * sample + mask.to(sample.dtype) * controlnet_cond
+                mask_down = F.interpolate(mask.to(sample.dtype), size=sample.shape[2:], mode='nearest')
+                sample = (1 - mask_down) * sample + mask_down * controlnet_cond
             else:
                 sample = sample + controlnet_cond
 
@@ -1629,6 +1630,10 @@ class StableDiffusionImage2PanoPipeline(DiffusionPipeline, TextualInversionLoade
             generator,
         )
         if mask is not None:
+            init_latents_clean = self.vae.encode(image.to(device=device, dtype=prompt_embeds.dtype)).latent_dist.sample(generator)
+            init_latents_clean = self.vae.config.scaling_factor * init_latents_clean
+            init_latents_clean = torch.cat([init_latents_clean, init_latents_clean[:, :, :, :self.blend_extend]], dim=-1)
+            mask = mask.to(device=device, dtype=prompt_embeds.dtype)
             mask = torch.cat([mask] * batch_size, dim=0)
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -1700,6 +1705,15 @@ class StableDiffusionImage2PanoPipeline(DiffusionPipeline, TextualInversionLoade
 
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
+
+                if mask is not None:
+                    mask_down = F.interpolate(mask.to(latents.dtype), size=latents.shape[2:], mode='nearest')
+                    if i < len(timesteps) - 1:
+                        noise = randn_tensor(init_latents_clean.shape, generator=generator, device=device, dtype=prompt_embeds.dtype)
+                        init_latents_proper = self.scheduler.add_noise(init_latents_clean, noise, t.expand(init_latents_clean.shape[0]))
+                    else:
+                        init_latents_proper = init_latents_clean
+                    latents = (1 - mask_down) * init_latents_proper + mask_down * latents
 
                 # call the callback, if provided
                 if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):

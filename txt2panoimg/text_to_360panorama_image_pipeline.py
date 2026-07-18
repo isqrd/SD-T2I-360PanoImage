@@ -136,6 +136,23 @@ class Text2360PanoramaImagePipeline(DiffusionPipeline):
         guidance_scale_sr_step1 = inputs.get('guidance_scale_sr_step1', 15)
         guidance_scale_sr_step2 = inputs.get('guidance_scale_sr_step1', 17)
 
+        target_resolution = inputs.get('target_resolution', '6k').lower()
+        if target_resolution == "4k":
+            width_step1 = 1536
+            height_step1 = 768
+            width_step3 = 3840
+            height_step3 = 1920
+        elif target_resolution == "8k":
+            width_step1 = 3840
+            height_step1 = 1920
+            width_step3 = 7680
+            height_step3 = 3840
+        else:
+            width_step1 = 3072
+            height_step1 = 1536
+            width_step3 = 6144
+            height_step3 = 3072
+
         if 'prompt' in inputs.keys():
             prompt = inputs['prompt']
         else:
@@ -165,23 +182,22 @@ class Text2360PanoramaImagePipeline(DiffusionPipeline):
         else:
             print('inputs: upscale=True, running upscaler.')
             print('running upscaler step1. Initial super-resolution')
-            sr_scale = 2.0
             output_img = self.pipe_sr(
                 prompt.replace('<360panorama>, ', ''),
                 negative_prompt=negative_prompt,
                 image=output_img.resize(
-                    (int(1536 * sr_scale), int(768 * sr_scale))),
+                    (width_step1, height_step1)),
                 num_inference_steps=7,
                 generator=generator,
                 control_image=output_img.resize(
-                    (int(1536 * sr_scale), int(768 * sr_scale))),
+                    (width_step1, height_step1)),
                 strength=0.8,
                 controlnet_conditioning_scale=1.0,
                 guidance_scale=guidance_scale_sr_step1,
             ).images[0]
 
             print('running upscaler step2. Super-resolution with Real-ESRGAN')
-            output_img = output_img.resize((1536 * 2, 768 * 2))
+            output_img = output_img.resize((width_step1, height_step1))
             w = output_img.size[0]
             blend_extend = 10
             outscale = 2
@@ -198,16 +214,15 @@ class Text2360PanoramaImagePipeline(DiffusionPipeline):
                 print(
                     'inputs: refinement=True, running refinement. This is a bit time-consuming.'
                 )
-                sr_scale = 4
                 output_img = self.pipe_sr(
                     prompt.replace('<360panorama>, ', ''),
                     negative_prompt=negative_prompt,
                     image=output_img.resize(
-                        (int(1536 * sr_scale), int(768 * sr_scale))),
+                        (width_step3, height_step3)),
                     num_inference_steps=7,
                     generator=generator,
                     control_image=output_img.resize(
-                        (int(1536 * sr_scale), int(768 * sr_scale))),
+                        (width_step3, height_step3)),
                     strength=0.8,
                     controlnet_conditioning_scale=1.0,
                     guidance_scale=guidance_scale_sr_step2,

@@ -766,12 +766,20 @@ class StableDiffusionControlNetImg2ImgPanoPipeline(
             row_latents = []
             row_control_images = []
             for j in range(0, latents.shape[3] - overlap_size, overlap_size):
-                latents_input = latents[:, :, i:i + tile_latent_min_size,
-                                        j:j + tile_latent_min_size]
-                c_start_i = self.vae_scale_factor * i
-                c_end_i = self.vae_scale_factor * (i + tile_latent_min_size)
-                c_start_j = self.vae_scale_factor * j
-                c_end_j = self.vae_scale_factor * (j + tile_latent_min_size)
+                start_i = i
+                if start_i + tile_latent_min_size > latents.shape[2]:
+                    start_i = latents.shape[2] - tile_latent_min_size
+                
+                start_j = j
+                if start_j + tile_latent_min_size > latents.shape[3]:
+                    start_j = latents.shape[3] - tile_latent_min_size
+
+                latents_input = latents[:, :, start_i:start_i + tile_latent_min_size,
+                                        start_j:start_j + tile_latent_min_size]
+                c_start_i = self.vae_scale_factor * start_i
+                c_end_i = self.vae_scale_factor * (start_i + tile_latent_min_size)
+                c_start_j = self.vae_scale_factor * start_j
+                c_end_j = self.vae_scale_factor * (start_j + tile_latent_min_size)
                 control_image_input = control_image[:, :, c_start_i:c_end_i,
                                                     c_start_j:c_end_j]
                 row_latents.append(latents_input)
